@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.db import connection
+from django.db.models import Q
 from users.serializers import UserSerializer
 from .models import Project, Membership, Task
 from .serializers import ProjectDetailSerializer, TaskSerializer
@@ -107,27 +107,15 @@ class TaskListCreateView(APIView):
         if not membership:
             return Response({'error': 'forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
-        q = request.query_params.get('q')
-        if q:
-            with connection.cursor() as cursor:
-                sql = (
-                    f"SELECT id, project_id, title, description, status, assignee_id, created_by_id, position, created_at, updated_at "
-                    f"FROM tasks "
-                    f"WHERE project_id = '{project_id}' "
-                    f"AND (title ILIKE '%{q}%' OR description ILIKE '%{q}%') "
-                    f"ORDER BY position ASC"
-                )
-                cursor.execute(sql)
-                columns = [col[0] for col in cursor.description]
-                rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            return Response({'tasks': rows})
-
         tasks = (
             Task.objects
             .filter(project_id=project_id)
             .select_related('assignee')
             .order_by('status', 'position')
         )
+        q = request.query_params.get('q')
+        if q:
+            tasks = tasks.filter(Q(title__icontains=q) | Q(description__icontains=q))
         return Response({'tasks': TaskSerializer(tasks, many=True).data})
 
     def post(self, request, project_id):
@@ -164,9 +152,15 @@ class TaskListCreateView(APIView):
 class TaskDetailView(APIView):
     def patch(self, request, task_id):
         try:
-            task = Task.objects.get(id=task_id)
+            task = Task.objects.select_related('project').get(id=task_id)
         except Task.DoesNotExist:
             return Response({'error': 'not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        membership = _get_membership(request.user, str(task.project_id))
+        if not membership:
+            return Response({'error': 'forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        if not _can_edit_tasks(membership.role):
+            return Response({'error': 'viewers cannot update tasks'}, status=status.HTTP_403_FORBIDDEN)
 
         if 'title' in request.data:
             task.title = request.data['title'].strip()

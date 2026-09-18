@@ -37,6 +37,8 @@ services:
       - "3001:3000"
     depends_on:
       - backend
+    environment:
+      API_PROXY_TARGET: http://backend:8000
 
 volumes:
   pgdata:
