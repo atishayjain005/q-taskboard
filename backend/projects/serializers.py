@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from users.serializers import UserSerializer
-from .models import Project, Membership, Task
+from .models import Project, Membership, Task, Comment, Activity
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -26,6 +26,22 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
 
 
+class CommentSerializer(serializers.ModelSerializer):
+    author = UserSerializer(read_only=True)
+    author_id = serializers.SerializerMethodField()
+    task_id = serializers.SerializerMethodField()
+
+    def get_author_id(self, obj):
+        return str(obj.author_id)
+
+    def get_task_id(self, obj):
+        return str(obj.task_id)
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'task_id', 'body', 'author_id', 'author', 'created_at']
+
+
 class MembershipSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
 
@@ -46,3 +62,30 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'description', 'owner_id', 'owner', 'memberships', 'tasks', 'created_at', 'updated_at']
+
+
+class ActivitySerializer(serializers.ModelSerializer):
+    actor = UserSerializer(read_only=True)
+    actor_id = serializers.SerializerMethodField()
+    project_id = serializers.SerializerMethodField()
+    task_id = serializers.SerializerMethodField()
+    comment_id = serializers.SerializerMethodField()
+
+    def get_actor_id(self, obj):
+        return str(obj.actor_id) if obj.actor_id else None
+
+    def get_project_id(self, obj):
+        return str(obj.project_id)
+
+    def get_task_id(self, obj):
+        return str(obj.task_id) if obj.task_id else None
+
+    def get_comment_id(self, obj):
+        return str(obj.comment_id) if obj.comment_id else None
+
+    class Meta:
+        model = Activity
+        fields = [
+            'id', 'project_id', 'event', 'actor', 'actor_id',
+            'task_id', 'comment_id', 'metadata', 'created_at',
+        ]

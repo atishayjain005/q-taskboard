@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, getToken } from "@/lib/api-client";
+import { apiFetch, getStoredUser, getToken } from "@/lib/api-client";
 import { Header } from "@/components/Header";
 import { StatusColumn } from "@/components/StatusColumn";
 import { TaskDetail } from "@/components/TaskDetail";
+import { ActivityFeed } from "@/components/ActivityFeed";
+import { ExportButton } from "@/components/ExportButton";
 import type { ApiProjectDetail, ApiTask, TaskStatus } from "@/types";
 import { STATUS_ORDER } from "@/types";
 
@@ -36,11 +38,15 @@ export default function ProjectPage() {
     onSuccess: () => {
       setNewTitle("");
       queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["activity", id] });
     },
     onError: (err) => setError(err instanceof Error ? err.message : "create failed"),
   });
 
   const project = data?.project;
+  const me = getStoredUser();
+  const myRole = project?.memberships.find((m) => m.user.id === me?.id)?.role;
+  const canExport = myRole === "admin" || myRole === "member";
   const tasksByStatus: Record<TaskStatus, ApiTask[]> = {
     todo: [],
     in_progress: [],
@@ -74,7 +80,7 @@ export default function ProjectPage() {
 
         {project && (
           <>
-            <div className="flex items-start justify-between mt-4 mb-8">
+            <div className="flex items-start justify-between mt-4 mb-8 gap-4">
               <div>
                 <h1 className="text-2xl font-semibold">{project.name}</h1>
                 {project.description && (
@@ -86,6 +92,7 @@ export default function ProjectPage() {
                   owner: {project.owner.name} · {project.memberships.length} members
                 </p>
               </div>
+              <ExportButton projectId={String(project.id)} canExport={canExport} />
             </div>
 
             <section className="bg-surface border border-border rounded-lg p-4 mb-6">
@@ -143,22 +150,25 @@ export default function ProjectPage() {
               ))}
             </div>
 
-            <section className="mt-10">
-              <h2 className="text-sm font-medium mb-3">members</h2>
-              <ul className="bg-surface border border-border rounded-lg divide-y divide-border">
-                {project.memberships.map((m) => (
-                  <li
-                    key={m.id}
-                    className="px-4 py-3 flex items-center justify-between text-sm"
-                  >
-                    <span>{m.user.name}</span>
-                    <span className="text-xs text-muted">
-                      {m.user.email} · {m.role}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <div className="mt-10 grid gap-8 lg:grid-cols-2">
+              <section>
+                <h2 className="text-sm font-medium mb-3">members</h2>
+                <ul className="bg-surface border border-border rounded-lg divide-y divide-border">
+                  {project.memberships.map((m) => (
+                    <li
+                      key={m.id}
+                      className="px-4 py-3 flex items-center justify-between text-sm"
+                    >
+                      <span>{m.user.name}</span>
+                      <span className="text-xs text-muted">
+                        {m.user.email} · {m.role}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <ActivityFeed projectId={String(project.id)} />
+            </div>
           </>
         )}
       </main>

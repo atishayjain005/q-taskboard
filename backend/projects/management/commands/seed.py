@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from users.models import User
-from projects.models import Project, Membership, Task
+from projects.models import Project, Membership, Task, Comment, Activity
 
 
 class Command(BaseCommand):
@@ -83,6 +83,41 @@ class Command(BaseCommand):
                 created_by=arjun,
                 position=position,
             )
+
+        launch_task = Task.objects.get(project=launch, title='Finalize launch date with marketing')
+        first_comment = Comment.objects.create(task=launch_task, author=meera, body='Locked the date with marketing — Sept 18.')
+        second_comment = Comment.objects.create(task=launch_task, author=arjun, body='Press embargo until the 17th.')
+
+        Activity.log(
+            project_id=launch.id,
+            actor=meera,
+            event=Activity.EVENT_TASK_CREATED,
+            task=launch_task,
+            metadata={'title': launch_task.title, 'status': launch_task.status},
+        )
+        Activity.log(
+            project_id=launch.id,
+            actor=kavya,
+            event=Activity.EVENT_TASK_STATUS_CHANGED,
+            task=Task.objects.get(project=launch, title='Record demo video'),
+            metadata={'title': 'Record demo video', 'from_status': 'todo', 'to_status': 'in_progress'},
+        )
+        Activity.log(
+            project_id=launch.id,
+            actor=meera,
+            event=Activity.EVENT_COMMENT_ADDED,
+            task=launch_task,
+            comment=first_comment,
+            metadata={'task_title': launch_task.title},
+        )
+        Activity.log(
+            project_id=launch.id,
+            actor=arjun,
+            event=Activity.EVENT_COMMENT_ADDED,
+            task=launch_task,
+            comment=second_comment,
+            metadata={'task_title': launch_task.title},
+        )
 
         self.stdout.write(self.style.SUCCESS('seed complete.'))
         self.stdout.write('login with any of these (password: password123):')

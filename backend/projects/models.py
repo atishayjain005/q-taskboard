@@ -54,9 +54,86 @@ class Task(models.Model):
         related_name='created_tasks',
     )
     position = models.IntegerField(default=0)
+    airtable_record_id = models.CharField(max_length=64, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'tasks'
-        indexes = [models.Index(fields=['project', 'status'])]
+        indexes = [models.Index(fields=['project', 'status'], name='tasks_project_status_idx')]
+
+
+class Comment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='comments',
+    )
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'comments'
+        indexes = [models.Index(fields=['task', 'created_at'], name='comments_task_created_idx')]
+        ordering = ['created_at']
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValueError('comments are append-only')
+        super().save(*args, **kwargs)
+
+
+class Activity(models.Model):
+    EVENT_TASK_CREATED = 'task_created'
+    EVENT_TASK_STATUS_CHANGED = 'task_status_changed'
+    EVENT_COMMENT_ADDED = 'comment_added'
+    EVENT_CHOICES = [
+        (EVENT_TASK_CREATED, 'Task created'),
+        (EVENT_TASK_STATUS_CHANGED, 'Task status changed'),
+        (EVENT_COMMENT_ADDED, 'Comment added'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='activities')
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='activities',
+    )
+    event = models.CharField(max_length=40, choices=EVENT_CHOICES)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='activities',
+    )
+    comment = models.ForeignKey(
+        Comment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='activities',
+    )
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'activities'
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['project', '-created_at'], name='activities_project_created_idx')]
+
+    @classmethod
+    def log(cls, *, project_id, actor, event, task=None, comment=None, metadata=None):
+        return cls.objects.create(
+            project_id=project_id,
+            actor=actor,
+            event=event,
+            task=task,
+            comment=comment,
+            metadata=metadata or {},
+        )

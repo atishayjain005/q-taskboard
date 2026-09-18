@@ -39,6 +39,35 @@ export type ApiProjectDetail = {
   updatedAt: string;
 };
 
+export type ApiComment = {
+  id: string;
+  task_id: string;
+  body: string;
+  author_id: string;
+  author: ApiUser;
+  created_at: string;
+};
+
+export type ActivityEvent = "task_created" | "task_status_changed" | "comment_added";
+
+export type ApiActivity = {
+  id: string;
+  project_id: string;
+  event: ActivityEvent;
+  actor: ApiUser | null;
+  actor_id: string | null;
+  task_id: string | null;
+  comment_id: string | null;
+  metadata: {
+    title?: string;
+    status?: string;
+    from_status?: string;
+    to_status?: string;
+    task_title?: string;
+  };
+  created_at: string;
+};
+
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: "To do",
   in_progress: "In progress",

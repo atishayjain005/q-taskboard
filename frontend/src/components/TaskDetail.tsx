@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, getStoredUser } from "@/lib/api-client";
+import { CommentThread } from "@/components/CommentThread";
 import type { ApiTask, ApiProjectMember, TaskStatus } from "@/types";
 import { STATUS_LABELS, STATUS_ORDER } from "@/types";
 
@@ -27,6 +28,7 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
       onClose();
     },
     onError: (err) => setError(err instanceof Error ? err.message : "save failed"),
@@ -52,13 +54,17 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
     });
   }
 
+  const me = getStoredUser();
+  const myRole = members.find((m) => m.user.id === me?.id)?.role;
+  const canPost = myRole === "admin" || myRole === "member";
+
   return (
     <div
       className="fixed inset-0 bg-black/60 flex items-center justify-center px-4 z-50"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl bg-surface border border-border rounded-lg p-6"
+        className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-surface border border-border rounded-lg p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -151,6 +157,8 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
             </button>
           </div>
         </div>
+
+        <CommentThread taskId={task.id} projectId={projectId} canPost={canPost} />
       </div>
     </div>
   );
